@@ -12,6 +12,7 @@ from transformers import (
     AutoModelForTokenClassification,
     AutoModelForCausalLM,
 )
+from transformers import BloomTokenizerFast, BloomForSequenceClassification, BloomConfig
 from transformers import GPT2TokenizerFast
 
 from ts.torch_handler.base_handler import BaseHandler
@@ -70,7 +71,7 @@ class TransformersSeqClassifierHandler(BaseHandler, ABC):
             self.model = torch.jit.load(model_pt_path, map_location=self.device)
         elif self.setup_config["save_mode"] == "pretrained":
             if self.setup_config["mode"] == "sequence_classification":
-                self.model = AutoModelForSequenceClassification.from_pretrained(
+                self.model = BloomForSequenceClassification.from_pretrained(
                     model_dir
                 )
             elif self.setup_config["mode"] == "question_answering":
@@ -100,19 +101,7 @@ class TransformersSeqClassifierHandler(BaseHandler, ABC):
                 "gpt2", pad_token="<|endoftext|>"
             )
 
-        elif any(
-            fname
-            for fname in os.listdir(model_dir)
-            if fname.startswith("vocab.") and os.path.isfile(fname)
-        ):
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                model_dir, do_lower_case=self.setup_config["do_lower_case"]
-            )
-        else:
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.setup_config["model_name"],
-                do_lower_case=self.setup_config["do_lower_case"],
-            )
+        self.tokenizer = BloomTokenizerFast.from_pretrained(self.setup_config["model_name"])
 
         self.model.eval()
         logger.info("Transformer model from path %s loaded successfully", model_dir)
