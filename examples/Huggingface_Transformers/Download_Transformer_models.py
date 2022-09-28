@@ -2,7 +2,7 @@ import transformers
 import os
 import json
 import torch
-from transformers import BloomTokenizerFast, BloomForSequenceClassification, BloomConfig
+from transformers import BloomTokenizerFast, BloomForSequenceClassification, BloomConfig, BloomForTokenClassification
 from transformers import set_seed
 """ This function, save the checkpoint, config file along with tokenizer config and vocab files
     of a transformer model of your choice.
@@ -13,9 +13,17 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def transformers_model_dowloader(mode,pretrained_model_name,num_labels,do_lower_case):
     print("Download model and tokenizer", pretrained_model_name)
-    config = BloomConfig.from_pretrained(pretrained_model_name,num_labels=num_labels,torchscript=False)
-    model = BloomForSequenceClassification.from_pretrained(pretrained_model_name, config=config)
-    tokenizer = BloomTokenizerFast.from_pretrained(pretrained_model_name,do_lower_case=do_lower_case)
+    if mode == "sequence_classification":
+        config = BloomConfig.from_pretrained(pretrained_model_name,num_labels=num_labels,torchscript=False)
+        model = BloomForSequenceClassification.from_pretrained(pretrained_model_name, config=config)
+        tokenizer = BloomTokenizerFast.from_pretrained(pretrained_model_name,do_lower_case=do_lower_case)
+    elif mode == "token_classification":
+        config = BloomConfig.from_pretrained(pretrained_model_name,num_labels=num_labels,torchscript=False)
+        model = BloomForTokenClassification.from_pretrained(pretrained_model_name, config=config)
+        tokenizer = BloomTokenizerFast.from_pretrained(pretrained_model_name,do_lower_case=do_lower_case)
+    else:
+        raise Exception("Unknown mode: {}. Supported modes are sequence_classification and token_classification")
+
 
     NEW_DIR = "./Transformer_model"
     try:

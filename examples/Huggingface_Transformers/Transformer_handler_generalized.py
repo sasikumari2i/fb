@@ -12,7 +12,7 @@ from transformers import (
     AutoModelForTokenClassification,
     AutoModelForCausalLM,
 )
-from transformers import BloomTokenizerFast, BloomForSequenceClassification, BloomConfig
+from transformers import BloomTokenizerFast, BloomForSequenceClassification, BloomForTokenClassification
 from transformers import GPT2TokenizerFast
 
 from ts.torch_handler.base_handler import BaseHandler
@@ -58,13 +58,6 @@ class TransformersSeqClassifierHandler(BaseHandler, ABC):
         else:
             logger.warning("Missing the setup_config.json file.")
 
-        # Loading the shared object of compiled Faster Transformer Library if Faster Transformer is set
-        if self.setup_config["FasterTransformer"]:
-            faster_transformer_complied_path = os.path.join(
-                model_dir, "libpyt_fastertransformer.so"
-            )
-            torch.classes.load_library(faster_transformer_complied_path)
-
         # Loading the model and tokenizer from checkpoint and config files based on the user's choice of mode
         # further setup config can be added.
         if self.setup_config["save_mode"] == "torchscript":
@@ -77,24 +70,11 @@ class TransformersSeqClassifierHandler(BaseHandler, ABC):
             elif self.setup_config["mode"] == "question_answering":
                 self.model = AutoModelForQuestionAnswering.from_pretrained(model_dir)
             elif self.setup_config["mode"] == "token_classification":
-                self.model = AutoModelForTokenClassification.from_pretrained(model_dir)
+                self.model = BloomForTokenClassification.from_pretrained(model_dir)
             elif self.setup_config["mode"] == "text_generation":
                 self.model = AutoModelForCausalLM.from_pretrained(model_dir)
             else:
                 logger.warning("Missing the operation mode.")
-            # HF GPT2 models options can be gpt2, gpt2-medium, gpt2-large, gpt2-xl
-            # this basically palce different model blocks on different devices,
-            # https://github.com/huggingface/transformers/blob/v4.17.0/src/transformers/models/gpt2/modeling_gpt2.py#L962
-            if (
-                self.setup_config["model_parallel"]
-                and "gpt2" in self.setup_config["model_name"]
-            ):
-                self.model.parallelize()
-            else:
-                self.model.to(self.device)
-
-        else:
-            logger.warning("Missing the checkpoint or state_dict.")
 
         if "gpt2" in self.setup_config["model_name"]:
             self.tokenizer = GPT2TokenizerFast.from_pretrained(
@@ -136,12 +116,7 @@ class TransformersSeqClassifierHandler(BaseHandler, ABC):
                 input_text = data.get("body")
             if isinstance(input_text, (bytes, bytearray)):
                 input_text = input_text.decode("utf-8")
-            if (
-                self.setup_config["captum_explanation"]
-                and not self.setup_config["mode"] == "question_answering"
-            ):
-                input_text_target = ast.literal_eval(input_text)
-                input_text = input_text_target["text"]
+
             max_length = self.setup_config["max_length"]
             logger.info("Received text: '%s'", input_text)
             # preprocessing text for sequence_classification, token_classification or text_generation
@@ -265,7 +240,10 @@ class TransformersSeqClassifierHandler(BaseHandler, ABC):
             logger.info("Model predicted: '%s'", prediction)
         # Handling inference for token_classification.
         elif self.setup_config["mode"] == "token_classification":
-            outputs = self.model(input_ids_batch, attention_mask_batch)[0]
+            self.model = self.model.to(self.device)
+            input_ids_batch = input_ids_batch.to(self.device)
+            outputs = self.model(input_ids_batch)[0]
+            # outputs = self.model(input_ids_batch, attention_mask_batch)[0]
             print(
                 "This the output size from the token classification model",
                 outputs.size(),
