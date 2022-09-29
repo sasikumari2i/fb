@@ -2,6 +2,7 @@ build/
 dist/
 *pyc
 *.lock
+*.logs
 *__pycache__*
 *.egg-info/
 .idea
